@@ -1,0 +1,4 @@
+service vendor.gatekeeper-1-0-optee /vendor/bin/hw/android.hardware.gatekeeper-service.optee
+    class early_hal
+    user system
+    group system
