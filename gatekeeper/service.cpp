@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2017 GlobalLogic
+ * Copyright (C) 2019 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,46 +13,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "android.hardware.gatekeeper-service.trusty"
 
-#define LOG_TAG "android.hardware.gatekeeper@1.0-service.optee"
+#include <android-base/logging.h>
+#include <android/binder_manager.h>
+#include <android/binder_process.h>
 
-#include <android/hardware/gatekeeper/1.0/IGatekeeper.h>
+#include "optee_gatekeeper.h"
 
-#include <hidl/HidlTransportSupport.h>
-#include <hidl/LegacySupport.h>
-#include <utils/Log.h>
-
-#include "optee_gatekeeper_device.h"
-
-using android::hardware::configureRpcThreadpool;
-using android::hardware::joinRpcThreadpool;
-using android::hardware::gatekeeper::V1_0::IGatekeeper;
-using android::hardware::gatekeeper::V1_0::optee::OpteeGateKeeperDevice;
-using ::android::OK;
-using ::android::sp;
-
-const uint32_t max_threads = 1;
+using aidl::android::hardware::gatekeeper::OpteeGateKeeperDevice;
 
 int main() {
-    ALOGD("Checking gk connection to optee_os");
-    OpteeGateKeeperDevice *gk = new (std::nothrow) OpteeGateKeeperDevice;
-    if (!gk->getConnected()) {
-        ALOGE("gatekeeper failed to connect to optee_os");
-        return 1;
-    }
+    ABinderProcess_setThreadPoolMaxThreadCount(0);
 
-    ALOGI("Loading...");
-    sp<IGatekeeper> gatekeeper = gk;
-    if (gatekeeper == nullptr) {
-        ALOGE("Could not create gatekeeper instance");
-        return 1;
-    }
-    configureRpcThreadpool(max_threads, true);
-    if (gatekeeper->registerAsService() != OK) {
-        ALOGE("Could not register service.");
-        return 1;
-    }
-    joinRpcThreadpool();
+    std::shared_ptr<OpteeGateKeeperDevice> gatekeeper =
+            ndk::SharedRefBase::make<OpteeGateKeeperDevice>();
 
-    return 0; // should never get here
+    const std::string instance = std::string() + OpteeGateKeeperDevice::descriptor + "/default";
+    binder_status_t status =
+            AServiceManager_addService(gatekeeper->asBinder().get(), instance.c_str());
+    CHECK_EQ(status, STATUS_OK);
+
+    ABinderProcess_joinThreadPool();
+
+    return -1;  // Should never get here.
 }

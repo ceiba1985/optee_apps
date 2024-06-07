@@ -39,7 +39,7 @@ cc_binary {
     static_libs: ["libscrypt_static"],
     vendor: true,
 
-    init_rc: ["android.hardware.gatekeeper-service.intel.rc"],
-    vintf_fragments: ["android.hardware.gatekeeper-service.intel.xml"],
+    init_rc: ["android.hardware.gatekeeper-service.optee.rc"],
+    vintf_fragments: ["android.hardware.gatekeeper-service.optee.xml"],
 }
 

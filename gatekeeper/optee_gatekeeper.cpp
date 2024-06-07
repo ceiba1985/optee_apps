@@ -18,10 +18,12 @@
 
 #include <endian.h>
 #include <limits>
+#include <vector>
 
 #include <android-base/logging.h>
 #include <gatekeeper/password_handle.h>
 #include <hardware/hw_auth_token.h>
+#include <utils/Log.h>
 
 #include <gatekeeper_ipc.h>
 #include "optee_gatekeeper.h"
@@ -34,9 +36,6 @@ using ::gatekeeper::ERROR_RETRY;
 using ::gatekeeper::SizedBuffer;
 using ::gatekeeper::VerifyRequest;
 using ::gatekeeper::VerifyResponse;
-
-constexpr const uint32_t SEND_BUF_SIZE = 8192;
-constexpr const uint32_t RECV_BUF_SIZE = 8192;
 
 OpteeGateKeeperDevice::OpteeGateKeeperDevice()
     : connected_(false)
@@ -51,7 +50,7 @@ OpteeGateKeeperDevice::~OpteeGateKeeperDevice() {
 }
 
 bool OpteeGateKeeperDevice::getConnected() {
-    ALOGD("%s %d connected_ = %d", __func__, __LINE__, connected_);
+    ALOGV("%s %d connected_ = %d", __func__, __LINE__, connected_);
     return connected_;
 }
 
@@ -164,11 +163,11 @@ void sizedBuffer2AidlHWToken(SizedBuffer& buffer,
         uint32_t retry_timeout;
         deserialize_int(&i_resp, &retry_timeout);
         ALOGV("Enroll returns retry timeout %u", retry_timeout);
-		*rsp = {ERROR_RETRY_TIMEOUT, static_cast<int32_t>(response.retry_timeout), 0, {}};
+		*rsp = {ERROR_RETRY_TIMEOUT, static_cast<int32_t>(retry_timeout), 0, {}};
 		return ndk::ScopedAStatus::ok();
     }
 
-	if (response.error != ERROR_NONE) {
+	if (error != ERROR_NONE) {
         ALOGE("Enroll failed");
 		return ndk::ScopedAStatus(AStatus_fromServiceSpecificError(ERROR_GENERAL_FAILURE));
 	}
@@ -273,7 +272,7 @@ void sizedBuffer2AidlHWToken(SizedBuffer& buffer,
         uint32_t retry_timeout;
         deserialize_int(&i_resp, &retry_timeout);
         ALOGV("Verify returns retry timeout %u", retry_timeout);
-		*rsp = {ERROR_RETRY_TIMEOUT, static_cast<int32_t>(response.retry_timeout), 0, {}};
+		*rsp = {ERROR_RETRY_TIMEOUT, static_cast<int32_t>(retry_timeout), {}};
 		return ndk::ScopedAStatus::ok();
     } else if (error != ERROR_NONE) {
         ALOGE("Verify failed");
@@ -284,23 +283,16 @@ void sizedBuffer2AidlHWToken(SizedBuffer& buffer,
     uint32_t response_auth_token_length = 0;
     uint32_t response_request_reenroll;
 
-    deserialize_blob(&i_resp, &response_auth_token,
-        &response_auth_token_length);
+    deserialize_blob(&i_resp, &response_auth_token, &response_auth_token_length);
 
-    std::unique_ptr<uint8_t []> auth_token_ret(
-            new (std::nothrow) uint8_t[response_auth_token_length]);
-    if (!auth_token_ret) {
-        ALOGE("Cannot create auth token, not enough memory");
-        return ndk::ScopedAStatus(AStatus_fromServiceSpecificError(ERROR_GENERAL_FAILURE));
-    }
-
-    memcpy(auth_token_ret.get(), response_auth_token, response_auth_token_length);
+	std::vector<uint8_t> auth_token_ret(response_auth_token,
+	    response_auth_token + response_auth_token_length);
 
     deserialize_int(&i_resp, &response_request_reenroll);
 
 	*rsp = {response_request_reenroll ? STATUS_REENROLL : STATUS_OK, 0, {}};
 
-	SizedBuffer token_buf(auth_token_ret.get(), response_auth_token_length);
+	SizedBuffer token_buf = vec2sized_buffer(auth_token_ret);
 	// Convert the hw_auth_token_t to HardwareAuthToken in the response.
 	sizedBuffer2AidlHWToken(token_buf, &rsp->hardwareAuthToken);
 
@@ -308,11 +300,14 @@ void sizedBuffer2AidlHWToken(SizedBuffer& buffer,
     return ndk::ScopedAStatus::ok();
 }
 
-::ndk::ScopedAStatus OpteeGateKeeperDevice::deleteUser(int32_t uid) {
+::ndk::ScopedAStatus OpteeGateKeeperDevice::deleteUser(int32_t uid)
+{
+	(void)uid;
 	return ndk::ScopedAStatus(AStatus_fromServiceSpecificError(ERROR_NOT_IMPLEMENTED));
 }
 
-::ndk::ScopedAStatus OpteeGateKeeperDevice::deleteAllUsers() {
+::ndk::ScopedAStatus OpteeGateKeeperDevice::deleteAllUsers()
+{
 	return ndk::ScopedAStatus(AStatus_fromServiceSpecificError(ERROR_NOT_IMPLEMENTED));
 }
 

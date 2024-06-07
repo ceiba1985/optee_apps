@@ -26,11 +26,10 @@
 #undef LOG_TAG
 #define LOG_TAG "OpteeGatekeeper"
 
+namespace aidl {
 namespace android {
 namespace hardware {
 namespace gatekeeper {
-namespace V1_0 {
-namespace optee {
 
 OpteeIPC::OpteeIPC()
     : inUse(false)
@@ -127,8 +126,7 @@ bool OpteeIPC::call(uint32_t cmd,
     return true;
 }
 
-}  // namespace optee
-}  // namespace V1_0
 }  // namespace gatekeeper
 }  // namespace hardware
 }  // namespace android
+}  // namespace aidl
